@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1a1a1a"/>
+  <g fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 眼の輪郭 -->
+    <path d="M84 256 Q256 132 428 256 Q256 380 84 256 Z"/>
+    <!-- 虹彩 -->
+    <circle cx="256" cy="256" r="64"/>
+    <!-- スキャンの環 -->
+    <path d="M256 168 A88 88 0 0 1 344 256" opacity="0.5"/>
+  </g>
+  <!-- 瞳 -->
+  <circle cx="256" cy="256" r="24" fill="#ffffff"/>
+</svg>

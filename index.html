@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Hue - 今日の色相</title>
+<meta name="description" content="いくつかの質問に答えると、今日のあなたの『色相』を色で映し出します。澄んでいるか、少し濁っているか。結果はカード画像にしてシェアできます。記録は端末の中だけ。" />
+<meta name="theme-color" content="#14161a" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Hue" />
+<meta property="og:title" content="Hue - 今日の色相" />
+<meta property="og:description" content="質問に答えて、今日のあなたの色相を測る。澄んでいるか、濁っているか。" />
+<meta property="og:type" content="website" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #14161a; --bg-deep: #0f1115; --surface: #1e222a; --surface-2: #252a33;
+    --border: #2c313b; --border-soft: #232831;
+    --text: #e9eaed; --text-2: #aeb4bd; --text-3: #7c828c; --text-4: #565c66;
+    --light: #eceef1; --danger: #c98a80;
+    --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, "Helvetica Neue", "Noto Sans JP", sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.8; }
+  body { min-height: 100vh; background: linear-gradient(180deg, #181b21 0%, #14161a 50%, #0f1115 100%); background-attachment: fixed; }
+  button { font-family: inherit; color: inherit; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 540px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: calc(16px + var(--safe-top)) 20px calc(26px + var(--safe-bottom)); }
+  .top { display: flex; align-items: center; justify-content: space-between; min-height: 34px; }
+  .brand { font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: var(--text-3); }
+  .top-btn { background: none; border: none; color: var(--text-3); font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+  .top-btn:active { background: rgba(255,255,255,0.05); }
+  .center { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .btn-primary { background: var(--light); color: #15171c; border: none; border-radius: 14px; padding: 15px 18px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity 0.2s, transform 0.12s; }
+  .btn-primary:active { transform: translateY(1px); opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.32; }
+  .btn-soft { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
+  .btn-soft:active { background: rgba(255,255,255,0.1); }
+  .btn-text { background: none; border: none; color: var(--text-3); font-size: 13px; cursor: pointer; padding: 8px; }
+
+  /* Home */
+  .home-eye { width: 120px; height: 120px; margin: 0 auto 26px; display: block; opacity: 0.95; }
+  .home-title { font-size: 25px; font-weight: 800; text-align: center; letter-spacing: 0.01em; }
+  .home-sub { font-size: 13.5px; color: var(--text-3); text-align: center; margin-top: 12px; line-height: 1.95; }
+  .home-actions { margin-top: 36px; }
+  .home-foot { text-align: center; margin-top: 20px; }
+
+  /* Quiz */
+  .q-progress { display: flex; gap: 5px; margin-bottom: 30px; }
+  .q-seg { flex: 1; height: 3px; border-radius: 2px; background: var(--border); }
+  .q-seg.done { background: var(--text-2); }
+  .q-num { font-size: 12px; color: var(--text-4); letter-spacing: 0.1em; }
+  .q-text { font-size: 21px; font-weight: 700; line-height: 1.65; margin-top: 6px; }
+  .q-opts { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
+  .q-opt { text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; font-size: 15px; cursor: pointer; transition: border-color 0.18s, background 0.18s, transform 0.1s; }
+  .q-opt:active { transform: translateY(1px); background: var(--surface-2); border-color: var(--text-4); }
+
+  /* Measuring */
+  .scan-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .scan-box { width: 200px; height: 200px; border-radius: 50%; border: 1px solid var(--border); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .scan-core { width: 60px; height: 60px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #3a4654, #1e222a); }
+  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--text-2), transparent); top: 0; animation: scan 1.4s ease-in-out infinite; }
+  @keyframes scan { 0% { top: 6%; } 50% { top: 94%; } 100% { top: 6%; } }
+  .scan-text { margin-top: 26px; font-size: 13px; color: var(--text-3); letter-spacing: 0.08em; }
+  .scan-text .mono { color: var(--text-2); }
+
+  /* Result */
+  .res-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .res-orb { width: 200px; height: 200px; border-radius: 50%; margin: 6px 0 22px; position: relative; }
+  .res-orb .glow { position: absolute; inset: -30px; border-radius: 50%; filter: blur(34px); opacity: 0.55; }
+  .res-orb .core { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 4px 20px rgba(255,255,255,0.18); }
+  .res-name { font-size: 30px; font-weight: 800; letter-spacing: 0.02em; }
+  .res-index { font-size: 14px; color: var(--text-2); margin-top: 8px; }
+  .res-index b { font-size: 17px; }
+  .res-reading { font-size: 14.5px; color: var(--text-2); line-height: 1.9; margin-top: 16px; max-width: 320px; }
+  .res-share { display: flex; gap: 10px; width: 100%; max-width: 340px; margin-top: 26px; }
+  .res-share .btn-primary, .res-share .btn-soft { width: auto; flex: 1; }
+  .res-care { margin-top: 18px; width: 100%; max-width: 340px; }
+  .res-care-lead { font-size: 12.5px; color: var(--text-3); margin-bottom: 10px; }
+  .res-care a { text-decoration: none; }
+  .res-foot { margin-top: 20px; display: flex; gap: 14px; }
+
+  /* History */
+  .hist-title { font-size: 19px; font-weight: 800; }
+  .hist-month { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 12px; }
+  .hist-mlabel { font-size: 14px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .grid-h { font-size: 10px; color: var(--text-4); text-align: center; padding-bottom: 2px; }
+  .cell { aspect-ratio: 1; border-radius: 8px; background: var(--surface); border: 1px solid var(--border-soft); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-4); position: relative; }
+  .cell.filled { border: none; color: rgba(0,0,0,0.45); font-weight: 700; }
+  .cell.empty2 { background: transparent; border: none; }
+  .hist-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; font-size: 11px; color: var(--text-3); }
+  .legend-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 3px; }
+  .hist-empty { text-align: center; color: var(--text-4); font-size: 13px; padding: 40px 0; }
+
+  /* Reading screens */
+  .read-title { font-size: 20px; font-weight: 800; }
+  .read-sub { font-size: 13px; color: var(--text-3); margin-top: 4px; margin-bottom: 6px; }
+  .read-scroll { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 14px; }
+  .read-h { font-size: 13px; font-weight: 800; margin-top: 18px; margin-bottom: 6px; }
+  .read-p { font-size: 13.5px; color: var(--text-2); line-height: 1.95; }
+  .read-list { font-size: 13.5px; color: var(--text-2); line-height: 1.95; padding-left: 20px; }
+  .read-list li { margin-bottom: 6px; }
+  .read-list strong, .read-p strong { color: var(--text); }
+
+  /* Settings */
+  .set-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+  .set-label { font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+  .set-desc { font-size: 12.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 12px; }
+  .seg { display: flex; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: none; background: none; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 600; color: var(--text-3); cursor: pointer; }
+  .seg button.active { background: var(--surface-2); color: var(--text); }
+  .dev-link { display: block; font-size: 13px; color: #6f95a8; text-decoration: none; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .eth-box { background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; font-family: ui-monospace, Menlo, monospace; word-break: break-all; color: var(--text-2); margin-bottom: 10px; }
+  .foot { text-align: center; color: var(--text-4); font-size: 11px; line-height: 1.9; margin-top: 22px; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(26px + var(--safe-bottom)); transform: translateX(-50%) translateY(20px); background: #2a2f38; color: #fff; font-size: 13px; padding: 11px 20px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 90; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .scan-line { animation: none; top: 50%; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+
+const STORAGE_KEY = 'hue_v1';
+const APP_VERSION = '1.0.0';
+const VERSION_KEY = 'hue_version';
+const TERMS_VERSION = 1;
+const APP_URL = 'https://hue.xdcyw.net';
+const STILL_URL = 'https://still.xdcyw.net';
+const ANCHOR_URL = 'https://anchor.xdcyw.net';
+
+const WHATS_NEW = ["Hue をリリースしました。今日のあなたの色相を、そっと測る時間に。"];
+const DEV_INFO = {
+  name: "田中志（たなかしるす）",
+  message: "Ataraxia Works という名前で、心にそっと寄り添う小さな道具をつくっています。",
+  links: [{ label: "X（Twitter）", url: "https://x.com/Sirusu_Tanaka" }],
+};
+const DONATIONS = [
+  { key: "btc", label: "ビットコイン（BTC）", address: "1EHshWSHyvJFjkAYQ5rPX7nKo2FRKWF58f" },
+  { key: "eth", label: "イーサリアム（ETH）", address: "0xb7da6af09c0f8db95d0c0e352e32d1915483931e" },
+];
+
+// 設問（各選択肢は 0=澄み 〜 3=濁り のスコア）
+const QUESTIONS = [
+  { q: "今の気分は、どんな感じ？", opts: ["すっきり澄んでいる", "ふつう", "もやもやする", "どんより重い"] },
+  { q: "昨夜は、眠れた？", opts: ["ぐっすり眠れた", "まあまあ", "浅かった", "ほとんど眠れていない"] },
+  { q: "人との関わりは、今日どうだった？", opts: ["心地よかった", "とくに何も", "少し疲れた", "とても疲れた"] },
+  { q: "頭の中の考えは、いま？", opts: ["静かにしている", "ふつう", "少しぐるぐるする", "ぐるぐる止まらない"] },
+  { q: "身体の感じは？", opts: ["軽い", "ふつう", "だるい", "重い・緊張している"] },
+  { q: "心の余裕は、どれくらい？", opts: ["ちゃんとある", "まあある", "少ない", "ほとんどない"] },
+  { q: "楽しみや希望を、感じられる？", opts: ["感じられる", "少しは", "あまり", "今は感じられない"] },
+];
+
+// 色相スペクトル（濁度 0–100 を澄み→濁りで分ける）
+const HUES = [
+  { max: 14,  name: "澄明",   color: "#4fc3e6", reading: "色相は、よく澄んでいます。いまの穏やかさを、そのまま大切に。", care: [] },
+  { max: 29,  name: "晴朗",   color: "#4cc0b0", reading: "おおむね晴れています。軽やかに過ごせそうな一日。", care: [] },
+  { max: 46,  name: "平静",   color: "#74b86a", reading: "おだやかに保たれています。無理なく、いまのペースで。", care: [] },
+  { max: 63,  name: "微揺",   color: "#d9b24e", reading: "少し揺らいでいます。ひと呼吸、入れてみませんか。", care: ["still"] },
+  { max: 81,  name: "混濁",   color: "#d07ba0", reading: "濁りはじめているサイン。がんばりすぎず、まず整えて。", care: ["still", "anchor"] },
+  { max: 100, name: "深濁",   color: "#d05f5f", reading: "ケアのサインかもしれません。今日は、自分を最優先に。", care: ["still", "anchor"] },
+];
+function hueFor(score) { for (const h of HUES) { if (score <= h.max) return h; } return HUES[HUES.length - 1]; }
+
+let state = { agreedTermsVersion: 0, logs: [], settings: { autoSave: true } };
+
+let view = 'home';            // home | quiz | measuring | result | history | settings
+let showTermsView = false;
+let showHelp = false;
+let updateInfo = null;
+let answers = [];
+let qIndex = 0;
+let result = null;            // { score, hue, ts, date }
+let histMonth = null;         // {y,m}
+
+// ── Persistence ─────────────────────────────────────────────────────────────
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s && typeof s === 'object') {
+      state = Object.assign({}, state, s);
+      state.settings = Object.assign({ autoSave: true }, s.settings || {});
+      if (!Array.isArray(state.logs)) state.logs = [];
+    }
+  } catch {}
+}
+function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {} }
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function randomId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(() => t.classList.remove('show'), 2400); }
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function todayStr() { return dateStr(new Date()); }
+function isInStandaloneMode() { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+
+function checkVersion() {
+  let prev = null; try { prev = localStorage.getItem(VERSION_KEY); } catch {}
+  if (prev && prev !== APP_VERSION) updateInfo = { from: prev, to: APP_VERSION };
+  if (!updateInfo) { try { localStorage.setItem(VERSION_KEY, APP_VERSION); } catch {} }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  if ((state.agreedTermsVersion || 0) < TERMS_VERSION) { app.innerHTML = renderTerms(false); return; }
+  if (showTermsView) { app.innerHTML = renderTerms(true); return; }
+  if (showHelp) { app.innerHTML = renderHelp(); return; }
+  if (updateInfo) { app.innerHTML = renderUpdate(); return; }
+  if (view === 'quiz') { app.innerHTML = renderQuiz(); return; }
+  if (view === 'measuring') { app.innerHTML = renderMeasuring(); return; }
+  if (view === 'result') { app.innerHTML = renderResult(); return; }
+  if (view === 'history') { app.innerHTML = renderHistory(); return; }
+  if (view === 'settings') { app.innerHTML = renderSettings(); return; }
+  app.innerHTML = renderHome();
+}
+function shell(inner, opts) {
+  opts = opts || {};
+  const left = opts.back ? '<button class="top-btn" onclick="' + opts.back + '">‹ もどる</button>' : '<span class="brand">HUE</span>';
+  const right = opts.right || '';
+  return '<div class="wrap"><div class="top">' + left + right + '</div>' + inner + '</div>';
+}
+function go(v) { view = v; showHelp = false; showTermsView = false; render(); }
+
+// ── HOME ─────────────────────────────────────────────────────────────────────
+function renderHome() {
+  const eye = '<svg class="home-eye" viewBox="0 0 512 512" fill="none" stroke="#e9eaed" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M84 256 Q256 132 428 256 Q256 380 84 256 Z"/><circle cx="256" cy="256" r="62"/>'
+    + '<path d="M256 170 A86 86 0 0 1 342 256" opacity="0.45"/><circle cx="256" cy="256" r="22" fill="#e9eaed" stroke="none"/></svg>';
+  return shell(
+    '<div class="center">' + eye
+    + '<div class="home-title">今日の色相を、測る</div>'
+    + '<div class="home-sub">いくつかの質問に答えると、いまのあなたの心が<br>どんな色をしているかを映し出します。</div>'
+    + '<div class="home-actions"><button class="btn-primary" onclick="startQuiz()">計測をはじめる</button></div>'
+    + (state.logs.length ? '<div class="home-foot"><button class="btn-text" onclick="openHistory()">これまでの色相</button></div>' : '')
+    + '</div>',
+    { right: '<button class="top-btn" onclick="go(\'settings\')">⚙</button>' }
+  );
+}
+
+// ── QUIZ ───────────────────────────────────────────────────────────────────────
+function startQuiz() { answers = QUESTIONS.map(() => null); qIndex = 0; view = 'quiz'; render(); }
+function renderQuiz() {
+  const segs = QUESTIONS.map(function(_, i) { return '<div class="q-seg' + (i < qIndex ? ' done' : '') + '"></div>'; }).join('');
+  const q = QUESTIONS[qIndex];
+  const opts = q.opts.map(function(o, i) { return '<button class="q-opt" onclick="answer(' + i + ')">' + escHtml(o) + '</button>'; }).join('');
+  return shell(
+    '<div style="margin-top:14px;display:flex;flex-direction:column;flex:1">'
+    + '<div class="q-progress">' + segs + '</div>'
+    + '<div class="q-num mono">Q' + (qIndex + 1) + ' / ' + QUESTIONS.length + '</div>'
+    + '<div class="q-text">' + escHtml(q.q) + '</div>'
+    + '<div class="q-opts">' + opts + '</div>'
+    + '</div>',
+    { back: 'quizBack()' }
+  );
+}
+function answer(score) {
+  answers[qIndex] = score;
+  if (qIndex + 1 >= QUESTIONS.length) { startMeasuring(); }
+  else { qIndex++; render(); }
+}
+function quizBack() {
+  if (qIndex > 0) { qIndex--; render(); }
+  else { view = 'home'; render(); }
+}
+
+// ── MEASURING ──────────────────────────────────────────────────────────────────
+function startMeasuring() { view = 'measuring'; render(); setTimeout(finishMeasuring, 1700); }
+function renderMeasuring() {
+  return shell(
+    '<div class="scan-stage"><div class="scan-box"><div class="scan-core"></div><div class="scan-line"></div></div>'
+    + '<div class="scan-text">色相を計測しています<span class="mono"> …</span></div></div>',
+    {}
+  );
+}
+function finishMeasuring() {
+  const raw = answers.reduce(function(a, v) { return a + (v || 0); }, 0);
+  const maxRaw = QUESTIONS.length * 3;
+  const score = Math.round(raw / maxRaw * 100);
+  const hue = hueFor(score);
+  const now = Date.now();
+  result = { score: score, hue: hue, ts: now, date: todayStr() };
+  if (state.settings.autoSave) {
+    state.logs.unshift({ id: randomId(), ts: now, date: todayStr(), score: score, name: hue.name, color: hue.color });
+    if (state.logs.length > 400) state.logs = state.logs.slice(0, 400);
+    saveState();
+  }
+  view = 'result'; render();
+}
+
+// ── RESULT ─────────────────────────────────────────────────────────────────────
+function renderResult() {
+  const h = result.hue;
+  let care = '';
+  if (h.care.length) {
+    const links = [];
+    if (h.care.indexOf('still') >= 0) links.push('<a href="' + STILL_URL + '" target="_blank" rel="noopener"><button class="btn-soft" style="margin-bottom:8px">🫧 ひと呼吸する — Still へ</button></a>');
+    if (h.care.indexOf('anchor') >= 0) links.push('<a href="' + ANCHOR_URL + '" target="_blank" rel="noopener"><button class="btn-soft">⚓ 頭の中を整える — Anchor へ</button></a>');
+    care = '<div class="res-care"><div class="res-care-lead">よかったら、こちらも。</div>' + links.join('') + '</div>';
+  }
+  return shell(
+    '<div class="res-stage">'
+    + '<div class="res-orb"><div class="glow" style="background:' + h.color + '"></div><div class="core" style="background:' + h.color + '"></div></div>'
+    + '<div class="res-name" style="color:' + h.color + '">' + escHtml(h.name) + '</div>'
+    + '<div class="res-index">濁度 <b class="mono">' + result.score + '</b> <span style="color:var(--text-4)">/ 100</span></div>'
+    + '<div class="res-reading">' + escHtml(h.reading) + '</div>'
+    + '<div class="res-share"><button class="btn-primary" onclick="shareResult()">画像でシェア</button><button class="btn-soft" onclick="saveImage()">保存</button></div>'
+    + care
+    + '<div class="res-foot"><button class="btn-text" onclick="startQuiz()">もう一度</button><button class="btn-text" onclick="go(\'home\')">とじる</button></div>'
+    + '</div>',
+    { back: 'go(\'home\')' }
+  );
+}
+function shareText() {
+  return '今日の色相は【' + result.hue.name + '】／濁度 ' + result.score + '。\n' + result.hue.reading + '\n#Hue #今日の色相\n' + APP_URL;
+}
+function buildCard() {
+  const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1080;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#14161a'; x.fillRect(0, 0, 1080, 1080);
+  const cx = 540, cy = 452;
+  const g = x.createRadialGradient(cx, cy, 10, cx, cy, 360);
+  g.addColorStop(0, result.hue.color); g.addColorStop(0.55, hexA(result.hue.color, 0.35)); g.addColorStop(1, 'rgba(20,22,26,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(cx, cy, 360, 0, Math.PI * 2); x.fill();
+  x.fillStyle = result.hue.color; x.beginPath(); x.arc(cx, cy, 150, 0, Math.PI * 2); x.fill();
+  x.textAlign = 'center';
+  x.fillStyle = '#7c828c'; x.font = '600 40px -apple-system, sans-serif'; x.fillText('今日の色相', 540, 140);
+  x.fillStyle = result.hue.color; x.font = '800 108px -apple-system, sans-serif'; x.fillText(result.hue.name, 540, 800);
+  x.fillStyle = '#aeb4bd'; x.font = '500 46px -apple-system, sans-serif'; x.fillText('濁度 ' + result.score + ' / 100', 540, 880);
+  x.fillStyle = '#565c66'; x.font = '500 34px -apple-system, sans-serif'; x.fillText(result.date.replace(/-/g, '.') + '　·　HUE', 540, 985);
+  return cv;
+}
+function hexA(hex, a) {
+  const m = hex.replace('#', ''); const r = parseInt(m.slice(0,2),16), g = parseInt(m.slice(2,4),16), b = parseInt(m.slice(4,6),16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
+function openXIntent(text) { window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
+function shareResult() {
+  const text = shareText();
+  const cv = buildCard();
+  cv.toBlob(function(blob) {
+    if (blob && navigator.canShare) {
+      try {
+        const file = new File([blob], 'hue.png', { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], text: text }).catch(function() { openXIntent(text); });
+          return;
+        }
+      } catch (e) {}
+    }
+    openXIntent(text);
+  }, 'image/png');
+}
+function saveImage() {
+  try {
+    const cv = buildCard(); const a = document.createElement('a');
+    a.href = cv.toDataURL('image/png'); a.download = 'hue-' + result.date + '.png'; a.click();
+    showToast('画像を保存しました');
+  } catch (e) { showToast('保存できませんでした'); }
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────────────────
+function openHistory() { const d = new Date(); histMonth = { y: d.getFullYear(), m: d.getMonth() }; view = 'history'; render(); }
+function histShift(d) {
+  let m = histMonth.m + d, y = histMonth.y;
+  if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
+  histMonth = { y: y, m: m }; render();
+}
+function renderHistory() {
+  if (!state.logs.length) return shell('<div style="margin-top:16px"><div class="hist-title">これまでの色相</div><div class="hist-empty">まだ記録がありません。<br>「計測をはじめる」から、今日の色相を測れます。</div></div>', { back: 'go(\'home\')' });
+  const y = histMonth.y, m = histMonth.m;
+  // 日ごとの最新ログ
+  const byDay = {};
+  state.logs.forEach(function(l) { if (!byDay[l.date]) byDay[l.date] = l; });
+  const first = new Date(y, m, 1); const startDow = first.getDay(); const days = new Date(y, m + 1, 0).getDate();
+  const heads = ['日','月','火','水','木','金','土'].map(function(d) { return '<div class="grid-h">' + d + '</div>'; }).join('');
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += '<div class="cell empty2"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = y + '-' + pad(m+1) + '-' + pad(d);
+    const l = byDay[ds];
+    if (l) cells += '<div class="cell filled" style="background:' + l.color + '" title="' + ds + ' ' + escHtml(l.name) + '">' + d + '</div>';
+    else cells += '<div class="cell">' + d + '</div>';
+  }
+  const legend = HUES.map(function(h) { return '<span><span class="legend-dot" style="background:' + h.color + '"></span>' + h.name + '</span>'; }).join('');
+  return shell(
+    '<div style="margin-top:14px"><div class="hist-title">これまでの色相</div>'
+    + '<div class="hist-month"><button class="top-btn" onclick="histShift(-1)">‹</button>'
+    + '<div class="hist-mlabel">' + y + '年 ' + (m + 1) + '月</div>'
+    + '<button class="top-btn" onclick="histShift(1)">›</button></div>'
+    + '<div class="grid">' + heads + cells + '</div>'
+    + '<div class="hist-legend">' + legend + '</div>'
+    + '<div class="foot">色の濃いマスほど、その日の色相が濁っていた目安です（澄み←→濁り）</div>'
+    + '</div>',
+    { back: 'go(\'home\')' }
+  );
+}
+
+// ── TERMS ──────────────────────────────────────────────────────────────────────
+function renderTermsBody() {
+  return '<div class="read-h">このアプリについて</div>'
+    + '<p class="read-p">Hue（ヒュー）は、いくつかの質問への答えから、いまのあなたの心の状態を「色相」という色で映し出す、自己内省のための小さな道具です。</p>'
+    + '<div class="read-h">大切なお願い（必ずお読みください）</div>'
+    + '<ul class="read-list">'
+    + '<li>これは<strong>娯楽・セルフチェックのためのもの</strong>で、<strong>医療的な診断ではありません</strong>。結果は目安として、軽い気持ちで受け取ってください。</li>'
+    + '<li>気持ちがつらいとき、ひとりで抱えきれないときは、信頼できる人や専門の相談窓口に頼ってください。あなたは、ひとりではありません。</li>'
+    + '<li>このアプリは、ある作品から着想を得た<strong>非公式のオマージュ</strong>です。特定の作品・企業の公式なものではなく、権利者とも一切関係ありません。固有の名称・ロゴ・画像などは使用していません。</li>'
+    + '</ul>'
+    + '<div class="read-h">あなたのデータについて</div>'
+    + '<ul class="read-list"><li>記録はすべて<strong>この端末の中だけ</strong>に保存されます。外部送信・広告・追跡・ログインはありません。</li>'
+    + '<li>シェアは画像とテキストを作って共有するだけで、アプリが勝手に投稿することはありません。</li></ul>'
+    + '<div class="read-h">無料です</div>'
+    + '<p class="read-p">このアプリは無料で使えます。応援したい人だけ、設定から寄付ができます（任意です）。</p>';
+}
+function renderTerms(viewOnly) {
+  return '<div class="wrap"><div class="top"><span class="brand">HUE</span></div>'
+    + '<div style="margin-top:10px"><div class="read-title">はじめる前に</div>'
+    + '<div class="read-sub">かんたんに言うと「遊びのセルフチェック」「データは端末の中だけ」です。</div>'
+    + '<div class="read-scroll">' + renderTermsBody() + '</div>'
+    + (viewOnly ? '<button class="btn-primary" style="margin-top:18px" onclick="closeTerms()">閉じる</button>'
+                : '<button class="btn-primary" style="margin-top:18px" onclick="agreeTerms()">読みました・はじめる</button>')
+    + '<div class="foot">同意すると、この内容に納得したことになります</div></div></div>';
+}
+function agreeTerms() { state.agreedTermsVersion = TERMS_VERSION; saveState(); render(); }
+function viewTerms() { showTermsView = true; render(); }
+function closeTerms() { showTermsView = false; render(); }
+
+// ── HELP ───────────────────────────────────────────────────────────────────────
+function renderHelp() {
+  return '<div class="wrap"><div class="top"><button class="top-btn" onclick="closeHelp()">‹ もどる</button></div>'
+    + '<div style="margin-top:10px"><div class="read-title">使い方</div>'
+    + '<div class="read-scroll">'
+    + '<div class="read-h">① 計測する</div><p class="read-p">「計測をはじめる」で、7つの質問に答えます。直感で大丈夫。終わると、今日のあなたの<strong>色相</strong>が色で表示されます。</p>'
+    + '<div class="read-h">② 色相と濁度</div><p class="read-p">澄んだ水色（澄明）から、緑・黄、ピンク、赤（深濁）へ。<strong>濁度</strong>が高いほど、心に負荷がかかっているサインの目安です。よい・悪いではなく、ただの“今の天気”として見てください。</p>'
+    + '<div class="read-h">③ シェアする</div><p class="read-p">結果はカード画像にして、Xなどにシェアできます（任意）。「保存」で画像を端末に保存もできます。</p>'
+    + '<div class="read-h">④ 記録と振り返り</div><p class="read-p">測った色相は記録され、「これまでの色相」で<strong>月のカラーグリッド</strong>として振り返れます。連続記録や達成は求めません。気が向いたときだけで大丈夫。</p>'
+    + '<div class="read-h">⑤ 濁っていたら</div><p class="read-p">色相が揺らいでいたら、結果画面から <strong>Still（呼吸）</strong> や <strong>Anchor（思考の整理）</strong> に行けます。無理せず、自分をいたわってください。</p>'
+    + '</div><button class="btn-primary" style="margin-top:18px" onclick="closeHelp()">閉じる</button></div></div>';
+}
+function openHelp() { showHelp = true; render(); }
+function closeHelp() { showHelp = false; render(); }
+
+// ── UPDATE ─────────────────────────────────────────────────────────────────────
+function renderUpdate() {
+  return '<div class="wrap"><div class="top"><span class="brand">HUE</span></div>'
+    + '<div style="margin-top:10px"><div class="read-title">新しくなりました</div>'
+    + '<div class="read-sub">' + (updateInfo.from ? 'バージョン ' + escHtml(updateInfo.from) + ' → ' + escHtml(updateInfo.to) : '最新版（' + escHtml(updateInfo.to) + '）になりました') + '</div>'
+    + '<div class="read-scroll"><ul class="read-list" style="margin-top:10px">' + WHATS_NEW.map(x => '<li>' + escHtml(x) + '</li>').join('') + '</ul></div>'
+    + '<button class="btn-primary" style="margin-top:18px" onclick="dismissUpdate()">続ける</button></div></div>';
+}
+function dismissUpdate() { try { localStorage.setItem(VERSION_KEY, APP_VERSION); } catch {} updateInfo = null; render(); }
+
+// ── SETTINGS ───────────────────────────────────────────────────────────────────
+function activeDonations() { return DONATIONS.filter(d => d.address && d.address.trim()); }
+function renderSettings() {
+  const standalone = isInStandaloneMode(); const ios = isIOS();
+  let install = '';
+  if (!standalone) {
+    install = '<div class="set-card"><div class="set-label">📲 ホーム画面に追加</div><div class="set-desc">アプリのようにすぐ開けて、オフラインでも動きます。</div>';
+    if (ios) install += '<div class="read-p" style="font-size:12.5px">Safari下部の共有ボタン（□↑）→「ホーム画面に追加」を選んでください。</div>';
+    else if (deferredPrompt) install += '<button class="btn-soft" onclick="triggerInstall()">ホーム画面に追加</button>';
+    else install += '<div class="read-p" style="font-size:12.5px">ブラウザのメニュー（⋮）→「ホーム画面に追加」を選んでください。</div>';
+    install += '</div>';
+  }
+  const a = state.settings.autoSave;
+  return '<div class="wrap"><div class="top"><button class="top-btn" onclick="go(\'home\')">‹ もどる</button><span class="brand">設定</span></div>'
+    + '<div style="margin-top:14px">'
+    + install
+    + '<div class="set-card"><div class="set-label">計測を記録する</div><div class="set-desc">計測した色相を自動で保存し、月のグリッドで振り返れます。</div>'
+    + '<div class="seg"><button class="' + (a?'active':'') + '" onclick="setAutoSave(true)">記録する</button><button class="' + (!a?'active':'') + '" onclick="setAutoSave(false)">記録しない</button></div></div>'
+    + '<div class="set-card"><div class="set-label">使い方</div><div class="set-desc">色相と濁度の見かたを説明します。</div><button class="btn-soft" onclick="openHelp()">使い方を見る</button></div>'
+    + '<div class="set-card"><div class="set-label">はじめにの注意・規約</div><div class="set-desc">免責（娯楽・非公式オマージュ）とプライバシーをもう一度読めます。</div><button class="btn-soft" onclick="viewTerms()">注意・規約を読む</button></div>'
+    + '<div class="set-card"><div class="set-label">開発者</div><div class="read-p" style="font-size:12.5px">' + escHtml(DEV_INFO.name) + '<br>' + escHtml(DEV_INFO.message) + '</div>'
+    + DEV_INFO.links.map(l => '<a class="dev-link" href="' + escHtml(l.url) + '" target="_blank" rel="noopener noreferrer">🔗 ' + escHtml(l.label) + '</a>').join('') + '</div>'
+    + '<div class="set-card"><div class="set-label">開発者に寄付する</div>'
+    + (activeDonations().length
+        ? '<div class="set-desc">よかったら暗号資産で応援できます。任意です。</div>' + activeDonations().map(d => '<div style="margin-top:8px"><div style="font-size:12.5px;font-weight:700;margin-bottom:6px">' + escHtml(d.label) + '</div><div class="eth-box">' + escHtml(d.address) + '</div><button class="btn-soft" onclick="copyAddr(\'' + escHtml(d.address) + '\')">アドレスをコピー</button></div>').join('')
+        : '<div class="set-desc" style="margin-bottom:0">寄付先はまだ設定されていません。</div>') + '</div>'
+    + '<div class="set-card"><div class="set-label">アプリの更新</div><div class="set-desc">v' + escHtml(APP_VERSION) + '（記録は消えません）。</div><button class="btn-soft" onclick="forceUpdate()">最新にして再読み込み</button></div>'
+    + '<div class="set-card"><div class="set-label" style="color:var(--danger)">すべて消す</div><div class="set-desc">これまでの色相の記録をすべて削除します。取り消せません。</div><button class="btn-soft" style="color:var(--danger)" onclick="resetApp()">すべてのデータを削除</button></div>'
+    + '<div class="foot">Hue v' + escHtml(APP_VERSION) + '<br>Ataraxia Works · 今日の色相<br>ある作品にインスパイアされた非公式のオマージュです<br>© 田中志 / Ataraxia Works</div>'
+    + '</div></div>';
+}
+function setAutoSave(v) { state.settings.autoSave = v; saveState(); render(); }
+function copyAddr(text) {
+  const done = function() { showToast('アドレスをコピーしました'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); }
+  catch { showToast('コピーできませんでした'); }
+}
+function resetApp() {
+  if (!confirm('これまでの色相の記録をすべて削除します。元に戻せません。よろしいですか？')) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  state = { agreedTermsVersion: TERMS_VERSION, logs: [], settings: { autoSave: true } };
+  saveState(); view = 'home'; render(); showToast('削除しました');
+}
+
+// ── PWA ────────────────────────────────────────────────────────────────────────
+let deferredPrompt = null;
+async function triggerInstall() {
+  if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch {} deferredPrompt = null; render(); return; }
+  showToast(isIOS() ? 'Safariの共有ボタンから「ホーム画面に追加」を選んでください' : 'ブラウザのメニューから「ホーム画面に追加」を選んでください');
+}
+async function forceUpdate() {
+  try {
+    if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); }
+    if (window.caches && caches.keys) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
+  } catch {}
+  window.location.reload();
+}
+window.addEventListener('beforeinstallprompt', function(e) { e.preventDefault(); deferredPrompt = e; if (view === 'settings') render(); });
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+loadState();
+checkVersion();
+render();
+
+if ('serviceWorker' in navigator) {
+  var hadController = !!navigator.serviceWorker.controller;
+  var reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() { if (!hadController || reloading) return; reloading = true; window.location.reload(); });
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').then(function(reg) {
+      reg.update().catch(function() {});
+      reg.addEventListener('updatefound', function() {
+        var nw = reg.installing; if (!nw) return;
+        nw.addEventListener('statechange', function() { if (nw.state === 'installed' && navigator.serviceWorker.controller) nw.postMessage({ type: 'SKIP_WAITING' }); });
+      });
+    }).catch(function() {});
+  });
+}
+</script>
+</body>
+</html>
