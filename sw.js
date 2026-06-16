@@ -1,5 +1,5 @@
 // バージョンを上げるたびに CACHE_NAME も変えること
-const CACHE_NAME = 'hue-1.1.0';
+const CACHE_NAME = 'hue-1.2.0';
 const CACHE_URLS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(CACHE_URLS)).then(() => self.skipWaiting())); });
